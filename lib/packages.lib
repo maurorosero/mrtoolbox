@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+#bash script     : packages.lib 
+#apps            : MRosero Personal Developer Utilities
+#description     : Package Installer Library
+#author		     : MRP/mrp - Mauro Rosero P.
+#company email   : mauro@rosero.one
+#personal email  : mauro.rosero@gmail.com
+#date            : 20240201
+#version         : 1.0.2
+#notes           :
+#==============================================================================
+#==============================================================================
+
+# Función para mostrar la barra de progreso utilizando dialog gauge
+show_progress() {
+  local message=$1
+  local percent=$2
+
+  echo "$percent" | dialog --backtitle "${title}" --title "${apps_title}" --gauge "${message}" 18 70 0
+}
+
+# Función para verificar si un paquete está instalado
+check_packages() {
+  install=0
+  if ! command -v $1 &>/dev/null; then
+    install=1
+  fi
+}
+
+# Función para instalar paquetes por instalador del OS
+install_os_packages() {
+    local pkg_name=$1
+
+    if [ "$(uname)" == "Darwin" ]; then
+        # En macOS, instalamos o actualizamos a través de Homebrew
+        log=$(brew install ${pkg_name} 2>&1)
+    elif [ -f /etc/debian_version ] || [ -f /etc/os-release ]; then
+        # En sistemas Debian y derivados, instalamos o actualizamos a través de apt
+        log=$(apt-get -y install ${pkg_name} 2>&1)
+    elif [ -f /etc/redhat-release ]; then
+        # En sistemas Red Hat, instalamos o actualizamos a través de dnf
+        log=$(dnf install ${pkg_name} 2>&1)
+    elif [ -f /etc/arch-release ]; then
+        # En Arch Linux, instalamos o actualizamos a través de pacman
+        log=$(pacman -Sy --noconfirm ${pkg_name} 2>&1)
+    elif [ -f /etc/rc.conf ]; then
+        # En BSD, instalamos o actualizamos a través de pkg
+        log=$(pkg install -y ${pkg_name} 2>&1)
+    fi
+}
+
+# Función para verificar si es ubuntu previo a usar snap
+snap_install() {
+    local pkg_name=$1
+    if [ -f /etc/debian_version ] || [ -f /etc/os-release ]; then
+        # Solo si es Ubuntu
+        log=$(snap install ${pkg_name} 2>&1)
+    fi
+}
+
+# Función para instalar paquetes pro medio de pip
+python_pip3_install() {
+    local pkg_name=$1
+    package_info=$(python -m pip show "$pkg_name" 2>/dev/null)
+    if [ -z "$package_info" ]
+    then
+        log=$(python3 -m pip install --user ${pkg_name} 2>&1)
+    else
+        log=$(python3 -m pip install --upgrade ${pkg_name} 2>&1)
+    fi
+}
+
+# Instalar paquetes de sistema operativo
+install_packages() {
+  local packages_file="$1"
+  local total_lines=$(wc -l <"${packages_file}")
+  local current_line=0
+
+  while IFS= read -r line; do
+    current_line=$((current_line + 1))
+    local progress=$((current_line * 100 / total_lines))
+
+    # Instalar la colección utilizando os-packager
+    install_os_packages ${line}
+
+    # Mostrar la barra de progreso
+    title="${head_000}"
+    show_progress "\n${head_installing}: $line\n\n$log" "$progress" "${title}" "${apps_title}"
+    sleep 3
+  done <"${packages_file}"
+
+  # Finalizar la barra de progreso
+  show_progress "\n${pkmsg_end}" "100"
+}
+
+# Instalar paquetes con snap
+snapd_packages() {
+  local packages_file="$1"
+  local total_lines=$(wc -l <"${packages_file}")
+  local current_line=0
+
+  while IFS= read -r line; do
+    current_line=$((current_line + 1))
+    local progress=$((current_line * 100 / total_lines))
+
+    # Instalar el paquete usando snap
+    snap_install ${line}
+
+    # Mostrar la barra de progreso
+    title="${head_000}"
+    apps_title="${pkmsg_300}"
+    show_progress "\n${head_installing}: $line\n\n$log" "$progress"
+    sleep 3
+  done <"${packages_file}"
+
+  # Finalizar la barra de progreso
+  show_progress "\n${pkmsg_end}" "100"
+}
+
+# Instalar paquetes con python-pip
+pip_packages() {
+  local packages_file="$1"
+  local total_lines=$(wc -l <"${packages_file}")
+  local current_line=0
+
+  while IFS= read -r line; do
+    current_line=$((current_line + 1))
+    local progress=$((current_line * 100 / total_lines))
+
+    # Instalar el paquete usando snap
+    python_pip3_install ${line}
+
+    # Mostrar la barra de progreso
+    title="${head_000}"
+    apps_title="${pkmsg_100}"
+    show_progress "\n${head_installing}: $line\n\n$log" "$progress"
+    sleep 3
+  done <"${packages_file}"
+
+  # Finalizar la barra de progreso
+  show_progress "\n${pkmsg_end}" "100"
+}
+
+get_os_family() {
+  os_family=$(grep "^ID_LIKE=" /etc/os-release | cut -d= -f2)
+}
+
+sops_repo_install() {
+    check_packages sops
+    if [ "${install}" == "1" ]; then
+        get_os_family
+        if [ ${os_family} == "debian" ]; then
+            SOPS_LATEST_VERSION=$(curl -s "https://api.github.com/repos/mozilla/sops/releases/latest" | grep -Po '"tag_name": "v\K[0-9.]+')
+            curl -Lo sops.deb "https://github.com/mozilla/sops/releases/latest/download/sops_${SOPS_LATEST_VERSION}_amd64.deb"
+            sudo apt --fix-broken install ./sops.deb
+            rm -rf sops.deb
+        fi
+        if [ ${os_family} == "redhat" ]; then
+            SOPS_LATEST_VERSION=$(curl -s "https://api.github.com/repos/mozilla/sops/releases/latest" | grep -Po '"tag_name": "v\K[0-9.]+')
+            curl -Lo sops.rpm "https://github.com/mozilla/sops/releases/latest/download/sops_${SOPS_LATEST_VERSION}_x86_64.rpm"
+            sudo dnf install sops.rpm
+            rm -rf sops.rpm
+        fi
+    fi
+}
+
+

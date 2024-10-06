@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+#bash script     : messages.lib
+#apps            : MRosero Personal Developer Utilities
+#description     : PGP & SOPS Library
+#author		     : MRP/mrp - Mauro Rosero P.
+#company email   : mauro@rosero.one
+#personal email  : mauro.rosero@gmail.com
+#date            : 20240201
+#version         : 1.0.2
+#notes           :
+#==============================================================================
+#==============================================================================
+
+# Global Default Variables
+MA_LOADED=1
+BINLIB_PATH=bin/lib
+BINMSG_PATH=bin/msg
+SOPS_PATH=$(cat ${HOME}/${BINLIB_PATH}/gpg.backup)/sops
+SOPS_TYPE=6
+SOPS_ID="PERSONAL SOPS"
+PERSONAL_GIT="PERSONAL GIT"
+
+# Función para cargar mensajes según idioma
+load_messages() {
+    local MSG_HOME="$1/${BINMSG_PATH}"
+    local MSG_FILE="$2"
+    local LANG_DEFAULT="es"
+
+    if [ -f "${MSG_HOME}/${MSG_FILE}.${LANG}" ]
+    then
+        source "${MSG_HOME}/${MSG_FILE}.${LANG}"
+    else
+        source "${MSG_HOME}/${MSG_FILE}.${LANG_DEFAULT}"
+    fi
+}
+
+# Función para determinar sistemas operativos o distribuciones válidas
+get_osname() {
+    if [ "$(uname)" == "Darwin" ]; then
+        # En macOS, instalamos o actualizamos a través de Homebrew
+        os_name=$(sw_vers -productVersion | awk -F '.' '{print "macOS " $1 "." $2}')
+    elif [ -f /etc/debian_version ] || [ -f /etc/os-release ]; then
+        # En sistemas Debian y derivados, instalamos o actualizamos a través de apt
+        os_name=$(grep "^ID_LIKE=" /etc/os-release | cut -d= -f2)
+        if grep -qi "${head_ubuntu}" /etc/os-release
+        then
+            os_name="${head_ubuntu}"
+        fi
+    elif [ -f /etc/redhat-release ]; then
+        # En sistemas Red Hat, instalamos o actualizamos a través de dnf
+        os_name=$(awk '{print $1}' /etc/redhat-release)
+    elif [ -f /etc/arch-release ]; then
+        # En Arch Linux, instalamos o actualizamos a través de pacman
+        os_name=$(grep '^NAME=' /etc/os-release | awk -F '"' '{print $2}')
+    elif [ -f /etc/rc.conf ]; then
+        # En BSD, instalamos o actualizamos a través de pkg
+        os_name=$(awk '{print $2}' /etc/version | awk -F '-' '{print $1}')
+    else
+        os_name="${head_unknow}"
+    fi
+}
+
+# Función para guardar contenidos en archivos encriptados sops
+function sops_crypt_file() {
+    local SOPS_FINGERPRINT="$1"
+    local SOPS_PATH="$2"
+    local SOPS_FILE="$3"
+    local SOPS_YAML="$4"
+
+    # Check if sops is not installed, exited!
+    if ! command -v sops >/dev/null 2>&1
+    then
+        return 1
+    fi
+
+    clear
+    # Guardar el token de acceso en un archivo YAML encriptado con SOPS y GPG
+    echo -e "${SOPS_YAML}" | sops -e --input-type yaml --output-type yaml --pgp ${SOPS_FINGERPRINT} /dev/stdin > "${SOPS_PATH}/${SOPS_FILE}"
+    read -p "${head_pause}"
+
+}
+
