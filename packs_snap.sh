@@ -16,7 +16,7 @@ install() {
     local install_file=$2
 
     # Load dialog console library
-    source "${HOME}/bin/lib/messages.lib"
+    source "${install_home}/bin/lib/messages.lib"
 
     # Load Installer Functions
     source "${install_home}/bin/lib/console.lib"
@@ -95,7 +95,8 @@ then
             if [ -n "${value}" ]
             then
                 clear
-                echo "${value}" | sudo -S bash -c "$(declare -f install); install ${HOME} ${apps_file}"
+                B_HOME=${HOME}
+                echo "${value}" | sudo -S bash -c "$(declare -f install); install ${B_HOME} ${apps_file}"
                 if [ "$?" == "0" ]
                 then
                     read
